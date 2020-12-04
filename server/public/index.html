@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="css/index.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <title>Socket</title>
+</head>
+<body>
+
+<div class="app">
+    <h1>Hi!</h1>
+    <div id="deviceready" class="blink">
+        <p class="event listening">Connecting to Socket</p>
+        <p class="event received">Socket is Ready!</p>
+    </div>
+
+    <div id="mario-chat">
+        <div id="chat-window">
+
+            <div id="output"> </div>
+            <div id="feedback"></div>
+        </div>
+
+        <input id="handle" type="text" placeholder="Handle" />
+        <input id="message" type="text" placeholder="Message" />
+        <button id="send">Send</button>
+
+    </div>
+    <script src="js/build.js"></script>
+</div>
+</body>
+</html>

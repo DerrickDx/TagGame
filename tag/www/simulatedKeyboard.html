@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ball</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+    <script src="https://unpkg.com/rxjs/bundles/rxjs.umd.min.js"></script>
+
+    <style>
+        *{
+            margin:0;
+            padding: 0;
+        }
+
+        .map{margin:100px auto;
+            height:600px;
+            width:900px;
+            background:#00D0FF;
+            border:10px solid #AFAEB2;
+            border-radius:8px;
+        }
+
+        #player_1{
+            width: 50px;
+            height: 50px;
+            background-color: black;
+            border-radius: 50%;
+            position: absolute;
+            left:100px;
+            top:100px;
+        }
+        /*.player_added{*/
+        /*    width: 50px;*/
+        /*    height: 50px;*/
+        /*    background-color: deeppink;*/
+        /*    border-radius: 50%;*/
+        /*    position: absolute;*/
+        /*    left:100px;*/
+        /*    top:100px;*/
+        /*}*/
+        .player_added {
+            position: absolute;
+            /*left:100px;*/
+            /*top:100px;*/
+            background-color: deeppink;
+            border-radius: 50%;
+        }
+        #power_speed{
+            width: 50px;
+            height: 50px;
+            background-color: darkblue;
+            border-radius: 50%;
+            position: absolute;
+            left:100px;
+            top:100px;
+            text: 'a'
+        }
+
+        #power_invisible{
+            width: 50px;
+            height: 50px;
+            background-color: gray;
+            border-radius: 50%;
+            position: absolute;
+            left:100px;
+            top:100px;
+        }
+
+    </style>
+</head>
+<body>
+<!--<div  class="map">-->
+<!--<h1>Tag</h1>-->
+<!--</div>-->
+
+<div id="header" style="background-color:lightblue;">
+<!--    <span style="margin-bottom:0;">Tag</span>-->
+    <br>
+
+    <button hidden id="colour-click" onclick="mycol = document.querySelector('#col').value;">CLICK</button></header>
+     <span id="displayed_timer" ></span>
+
+</div>
+<div id="canvas" style="background-color:floralwhite;">
+<div id="player_1"></div>
+<div id="power_speed"></div>
+<div id="power_invisible"></div>
+
+</div>
+
+    <div id="menu" style="background-color:darkseagreen;">
+        <h2 style="margin-bottom:0;">Menu</h2>
+        <button id="go-back" onclick="goBack()" >Leave game</button>
+    </div>
+
+
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<script>
+
+    const { fromEvent } = rxjs;
+    const { map, auditTime } = rxjs.operators;
+    var socket = io.connect('http://localhost:3001');
+
+    var canvas = document.getElementById('canvas');
+
+
+
+
+
+    var canvas_colour = "floralwhite";
+
+    var power_speed = document.getElementById('power_speed');
+    var power_invisible = document.getElementById('power_invisible');
+
+    var go_back = document.getElementById('go-back');
+
+    var c_width = document.documentElement.clientWidth;
+    var c_height = document.documentElement.clientHeight;
+
+    var header_height = c_height*0.1;
+    var canvas_height = c_height*0.8;
+    var menu_height = c_height*0.1;
+
+    var ball_size = canvas_height*0.03;
+
+
+    $("#displayed_timer").css({
+        'font-size':header_height*0.3
+    })
+    $("#color-choice").css({
+        'font-size':header_height*0.3
+    })
+    $("#colour-click").css({
+        'height':menu_height*0.25,
+        'font-size':menu_height*0.15
+    })
+    $("#go-back").css({
+        'height':menu_height*0.35,
+        'font-size':menu_height*0.2
+    })
+
+    $("#header").css({
+        'height':header_height
+    })
+    $("#canvas").css({
+        'height':canvas_height
+    })
+    $("#menu").css({
+        'height':menu_height
+    })
+
+
+    var power_size = canvas_height*0.02;
+
+
+    $("#power_speed").css({
+        'height':power_size,
+        'width':power_size
+    })
+    $("#power_invisible").css({
+        'height':power_size,
+        'width':power_size
+    })
+
+    var min_w = header_height;
+    var max_w = c_width-power_size;
+    var min_l = header_height;
+    var max_l = canvas_height-power_size;
+    power_speed.style.left = Math.floor(Math.random()*(max_w-min_w+1)+min_w)+ 'px';
+    power_speed.style.top = Math.floor(Math.random()*(max_l-min_l+1)+min_l)+ 'px';
+
+    power_invisible.style.left = Math.floor(Math.random()*(max_w-min_w+1)+min_w)+ 'px';
+    power_invisible.style.top = Math.floor(Math.random()*(max_l-min_l+1)+min_l)+ 'px';
+
+    var game_count_down = 60;
+    var game_started = false;
+
+    var displayed_timer = document.getElementById('displayed_timer');
+
+    displayed_timer.innerText = 'Remaining Time: '+game_count_down;
+
+    var ps_count_down = 0;
+    var ps_started = false;
+
+    var pi_count_down = 0;
+    var pi_started = false;
+
+
+    let preX = Math.floor(Math.random()*(max_w-min_w+1)+min_w);
+    let preY = Math.floor(Math.random()*(max_l-min_l+1)+min_l);
+
+
+
+    var player = document.getElementById('player_1');
+
+    $("#player_1").css({
+        'height':ball_size,
+        'width':ball_size
+    })
+    let mouse_x;
+    let mouse_y;
+    // console.log("preX "+preX+" preY "+preY)
+    var player_speed = canvas_height*0.01;
+
+
+
+    let mycol = 'hotpink';
+    // Socket input; from server
+    fromEvent(socket,'mouse').pipe(
+        map(
+            (x) => JSON.parse(x)
+        )
+    ).subscribe(function(mice) {
+        let mdots = document.querySelectorAll('.player_added');
+        // remove extra dots
+        while(mdots.length > mice.length){
+            canvas.removeChild(mdots[mdots.length-1]);
+            mdots = document.querySelectorAll('.player_added');
+        }
+        // add new dots
+        while(mice.length > mdots.length){
+            let mdiv = document.createElement("DIV");
+            mdiv.classList.add('player_added');
+            mdiv.style.height = ball_size+ 'px';
+            mdiv.style.width = ball_size+ 'px';
+            mdiv.style.top = preX+ 'px';
+            mdiv.style.left = preY+ 'px';
+            // console.log("preX "+preX+" preY "+preY)
+            canvas.appendChild(mdiv);
+            // console.log(mdiv)
+            mdots = document.querySelectorAll('.player_added');
+
+
+        }
+        // update dots
+        for(let i = 0; i < mice.length; i++){
+            mdots[i].style.left = mice[i][0]+'px';
+            mdots[i].style.top = mice[i][1]+'px';
+            mdots[i].style.backgroundColor = mice[i][2];
+            let mice_speed = mice[i][3];
+            // console.log("mdots[i].style.top "+mdots[i].style.top+" mdots[i].style.left "+mdots[i].style.left);
+            // console.log("mdots["+i+"] mice_size "+mice_speed);
+        }
+    });
+
+    // User input; send to server
+    fromEvent(canvas,'mousemove').pipe(
+        map((mouse) => {
+            // return [(mouse.x/window.innerWidth)*100,
+            //     (mouse.y/window.innerHeight)*100,mycol];
+            // console.log(" emit preX "+preX+" preY "+preY);
+            return [(preX),
+                (preY),mycol,ball_size];
+        })
+        // ,
+        // auditTime(10)
+    ).subscribe(function(mouse) {
+        console.log("emit")
+        socket.emit('mouse',JSON.stringify(mouse));
+    });
+
+    // let maadots = document.querySelectorAll('.player_added');
+    // console.log("maadots.length "+maadots.length+" "+JSON.stringify(maadots));
+
+    document.addEventListener("mousemove", move_f, false);
+
+
+    function goBack() {
+        window.location.href = 'index.html';
+    }
+
+    function move_f(e){
+        // e.stop prpa
+
+        var mx = e.pageX;
+        var my = e.pageY;
+        if (my <=header_height+2) {
+            e.stopPropagation();
+            return;
+        }
+        if (my >canvas_height+header_height){
+            e.stopPropagation();
+            return;
+        }
+        if (mx >c_width){
+            e.stopPropagation();
+            return;
+        }
+        if (game_count_down==60 && game_started==false) {
+            game_started = true;
+        }
+
+        mouse_x =mx;
+        mouse_y =my;
+
+    }
+
+    var timer = setInterval(function () {
+        cal_mov();
+        // console.log(game_count_down)
+        if (game_count_down==0) {
+            var displayed_timer = document.getElementById('displayed_timer');
+
+            displayed_timer.innerText = 'Game Over';
+            clearInterval(timer);
+        }
+
+    },100)
+
+    function cal_mov(){
+
+        var the_move_x = Math.abs(mouse_x - preX);
+        var the_move_y = Math.abs(mouse_y - preY);
+        var maxx = Math.max(the_move_y,the_move_x);
+        var minx = Math.min(the_move_y,the_move_x);
+
+
+        var fff = maxx/(minx+maxx)*player_speed;
+        var sss = minx/(minx+maxx)*player_speed;
+
+        var x_speed = player_speed;
+        var y_speed = player_speed;
+
+        if (the_move_x>the_move_y) {
+            x_speed = fff;
+            y_speed = sss;
+        } else if (the_move_x < the_move_y) {
+            y_speed = fff;
+            x_speed = sss;
+        }
+
+
+        if (mouse_x - preX > 0) {
+            preX += x_speed;
+        }
+        if (mouse_x - preX < 0) {
+            preX -= x_speed;
+        }
+        if (mouse_y - preY > 0) {
+            preY += y_speed;
+        }
+        if (mouse_y - preY < 0) {
+            preY -= y_speed;
+        }
+
+        if (preX > c_width -ball_size) {
+            // console.log(mouse_x)
+            preX = c_width -ball_size;
+        }
+
+        if (preY > canvas_height+header_height -ball_size) {
+            // console.log(mouse_x)
+            preY = canvas_height+header_height -ball_size;
+        }
+
+        $("#player_1").css({
+            'left':preX,
+            'top':preY
+        })
+
+
+
+        var pW = player.style.width.slice(0, (player.style.width.length -2));
+
+        var ps_cur_x = power_speed.style.left.slice(0, (power_speed.style.left.length -2));
+        var ps_cur_y = power_speed.style.top.slice(0, (power_speed.style.top.length -2));
+
+
+        var ps_cur_w = power_speed.clientWidth;
+        var ps_cur_l = power_speed.clientHeight;
+
+        // console.log("Math.abs(preX-ps_cur_x) "+Math.abs(preX-ps_cur_x)+" Math.abs(pW*(3/4)-ps_cur_w*(3/4)) "+Math.abs(pW*(3/4)-ps_cur_w*(3/4))+" pW"+pW+" ps_cur_w"+ps_cur_w);
+        // if (Math.abs(preX-ps_cur_x)<= Math.abs(pW*(3/4)-ps_cur_w*(3/4)) &&
+        //     Math.abs(preY-ps_cur_y)<= Math.abs(pW*(3/4)-ps_cur_w*(3/4))){
+        if (Math.abs(preX-ps_cur_x)<= Math.abs(ps_cur_w*(3/4)) &&
+            Math.abs(preY-ps_cur_y)<= Math.abs(ps_cur_w*(3/4))){
+            console.log("caught");
+            player_speed = player_speed*2;
+
+            var tmp_ball_size = ball_size*1.5;
+            $("#player_1").css({
+                'height':tmp_ball_size,
+                'width':tmp_ball_size
+            })
+
+            ball_size = tmp_ball_size;
+            power_speed.style.left = Math.floor(Math.random()*(max_w-min_w+1)+min_w)+ 'px';
+            power_speed.style.top = Math.floor(Math.random()*(max_l-min_l+1)+min_l)+ 'px';
+            ps_started = true;
+
+        }
+        // console.log("ps_count_down "+ps_count_down+" player_speed "+player_speed);
+        if (ps_started && ps_count_down < 50) {
+            ps_count_down++;
+        } else if (ps_started && ps_count_down >= 50) {
+            player_speed = canvas_height*0.01;
+            ps_started = false;
+            ps_count_down = 0;
+
+            ball_size = canvas_height*0.02;
+            $("#player_1").css({
+                'height':ball_size,
+                'width':ball_size
+            })
+            // ball_size = 50;
+        }
+        if (game_started==true) {
+            game_count_down = game_count_down-0.1;
+            game_count_down = game_count_down.toFixed(1)
+            var displayed_timer = document.getElementById('displayed_timer');
+            // console.log(game_count_down)
+            // if (game_count_down%1==0) {
+                displayed_timer.innerText = 'Remaining Time: '+game_count_down;
+            // }
+
+        }
+
+
+        var pi_cur_x = power_invisible.style.left.slice(0, (power_invisible.style.left.length -2));
+        var pi_cur_y = power_invisible.style.top.slice(0, (power_invisible.style.top.length -2));
+
+        var pi_cur_w = power_invisible.clientWidth;
+        var pi_cur_l = power_invisible.clientHeight;
+
+
+        if (Math.abs(preX-pi_cur_x)<= Math.abs(pi_cur_w*(3/4)) &&
+            Math.abs(preY-pi_cur_y)<= Math.abs(pi_cur_w*(3/4))){
+            console.log("caught invis");
+            player.style.backgroundColor = canvas_colour;
+
+            power_invisible.style.left = Math.floor(Math.random()*(max_w-min_w+1)+min_w)+ 'px';
+            power_invisible.style.top = Math.floor(Math.random()*(max_l-min_l+1)+min_l)+ 'px';
+            pi_started = true;
+
+        }
+        if (pi_started && pi_count_down < 50) {
+            pi_count_down++;
+        } else {
+            player.style.backgroundColor = "black";
+            pi_started = false;
+            pi_count_down = 0;
+        }
+
+
+    }
+
+
+</script>
+</body>
+
+</html>
